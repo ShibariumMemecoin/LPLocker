@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WoofSwap LP Locker - Shibarium</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Poppins', sans-serif; background: #1A1A1A; color: #fff; padding: 20px; min-height: 100vh; line-height: 1.6; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 25px; background: #252525; border-radius: 15px; box-shadow: 0 6px 25px rgba(0, 0, 0, 0.6); }
+        h1 { text-align: center; color: #F5A623; font-size: clamp(2em, 6vw, 3em); margin-bottom: 30px; font-weight: 700; text-transform: uppercase; text-shadow: 0 2px 4px rgba(245, 166, 35, 0.3); }
+        .section { background: #2E2E2E; padding: 20px; margin-bottom: 20px; border-radius: 10px; border: 2px solid #F5A623; }
+        h2 { color: #F5A623; font-size: clamp(1.2em, 4vw, 1.8em); margin-bottom: 15px; font-weight: 600; }
+        .button { background: #F5A623; color: #1A1A1A; padding: 8px 16px; border: none; border-radius: 30px; font-weight: 600; font-size: 0.9em; cursor: pointer; transition: background 0.3s ease, transform 0.2s ease; margin: 5px; }
+        .button:hover { background: #E5941F; transform: scale(1.05); }
+        .button:disabled { background: #555; color: #999; cursor: not-allowed; }
+        .percent-button { background: #3A3A3A; color: #F5A623; padding: 8px 15px; font-size: 0.8em; }
+        .percent-button:hover { background: #444; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 2px solid #F5A623; border-radius: 8px; background: #333; color: #fff; font-size: 1em; }
+        input::placeholder { color: #888; }
+        #walletAddress, .balance { color: #F5A623; font-weight: 600; word-break: break-all; }
+        #locksTable { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        #locksTable th, #locksTable td { padding: 12px; text-align: left; border-bottom: 1px solid #F5A623; }
+        #locksTable th { background: #333; color: #F5A623; }
+        #locksTable td { vertical-align: middle; }
+        .actions-cell { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-start; }
+        .loading { opacity: 0.7; pointer-events: none; }
+        .status { margin-top: 10px; font-size: 0.9em; color: #F5A623; }
+        .footer { text-align: center; margin-top: 30px; font-size: 0.9em; color: #666; }
+        .footer a { color: #F5A623; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        .percent-buttons { display: flex; gap: 5px; }
+        @media (max-width: 600px) {
+            .container { padding: 15px; }
+            .section { padding: 15px; }
+            .button { width: 100%; max-width: 100%; padding: 8px; }
+            .percent-buttons { display: flex; justify-content: space-between; gap: 5px; }
+            .percent-button { padding: 8px 10px; flex: 1; }
+            #locksTable { display: block; overflow-x: auto; }
+            #locksTable th, #locksTable td { font-size: 0.8em; padding: 8px; }
+            #locksTable th:nth-child(5), #locksTable td:nth-child(5) { display: none; } /* 隐藏“Actions”列标题和内容 */
+            #locksTable tr { display: block; margin-bottom: 10px; border-bottom: 1px solid #F5A623; }
+            #locksTable td { display: block; text-align: left; }
+            #locksTable td.actions-cell { display: block; padding-top: 0; }
+            #locksTable td.actions-cell button { display: block; width: 100%; margin: 5px 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WoofSwap LP Locker</h1>
+
+        <div class="section">
+            <h2>Connect to Shibarium</h2>
+            <button id="connectButton" class="button">Connect Wallet</button>
+            <p>Wallet: <span id="walletAddress">Not connected</span></p>
+            <div id="networkStatus" class="status">Click to connect...</div>
+        </div>
+
+        <div class="section" id="lockTempSection">
+            <h2>Lock Liquidity (Temporary)</h2>
+            <input type="text" id="pairAddressTemp" placeholder="Pair Address">
+            <p class="balance" id="balanceTemp">Balance: 0 LP</p>
+            <input type="number" id="amountTemp" placeholder="Amount (e.g., 10 LP)" step="0.01" min="0">
+            <div class="percent-buttons">
+                <button class="button percent-button" onclick="setPercentage('amountTemp', 25)">25%</button>
+                <button class="button percent-button" onclick="setPercentage('amountTemp', 50)">50%</button>
+                <button class="button percent-button" onclick="setPercentage('amountTemp', 75)">75%</button>
+                <button class="button percent-button" onclick="setPercentage('amountTemp', 100)">Max</button>
+            </div>
+            <input type="number" id="daysToLock" placeholder="Days to Lock" min="1">
+            <button id="lockTemp" class="button">Lock Liquidity</button>
+            <div id="lockTempStatus" class="status"></div>
+        </div>
+
+        <div class="section" id="lockPermSection">
+            <h2>Lock Liquidity (Permanent)</h2>
+            <input type="text" id="pairAddressPerm" placeholder="Pair Address">
+            <p class="balance" id="balancePerm">Balance: 0 LP</p>
+            <input type="number" id="amountPerm" placeholder="Amount (e.g., 10 LP)" step="0.01" min="0">
+            <div class="percent-buttons">
+                <button class="button percent-button" onclick="setPercentage('amountPerm', 25)">25%</button>
+                <button class="button percent-button" onclick="setPercentage('amountPerm', 50)">50%</button>
+                <button class="button percent-button" onclick="setPercentage('amountPerm', 75)">75%</button>
+                <button class="button percent-button" onclick="setPercentage('amountPerm', 100)">Max</button>
+            </div>
+            <button id="lockPerm" class="button">Lock Permanently</button>
+            <div id="lockPermStatus" class="status"></div>
+        </div>
+
+        <div class="section" id="locksSection">
+            <h2>Your Locks</h2>
+            <button id="fetchLocks" class="button">Fetch My Locks</button>
+            <table id="locksTable">
+                <thead>
+                    <tr>
+                        <th>Manager</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Days Left</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="locksBody"></tbody>
+            </table>
+            <div id="locksStatus" class="status"></div>
+        </div>
+
+        <div class="footer">
+            Powered by <a href="https://shibarium.shib.io/" target="_blank">Shibarium</a> | WoofSwap LP Locker © 2025
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
+    <script>
+        let web3, accounts, lockerContract;
+        const lockerAddress = "0xA6e957bf81b91DD572B19AfA34166c0E52af7dA5";
+        let tokenDecimals = {};
+
+        const lockerABI = [
+            {"inputs":[],"stateMutability":"nonpayable","type":"constructor"},
+            {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"manager","type":"address"}],"name":"LockManagerCreated","type":"event"},
+            {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":false,"internalType":"address","name":"pair","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"unlockTime","type":"uint256"},{"indexed":false,"internalType":"address","name":"manager","type":"address"}],"name":"LiquidityLocked","type":"event"},
+            {"inputs":[{"internalType":"address","name":"user","type":"address"}],"name":"getUserLockManagers","outputs":[{"internalType":"address[]","name":"","type":"address[]"}],"stateMutability":"view","type":"function"},
+            {"inputs":[{"internalType":"address","name":"pair","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"daysToLock","type":"uint256"}],"name":"lockLiquidity","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"},
+            {"inputs":[{"internalType":"address","name":"pair","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"lockLiquidityPermanently","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"nonpayable","type":"function"}
+        ];
+
+        const lockManagerABI = [
+            {"inputs":[{"internalType":"address","name":"_owner","type":"address"},{"internalType":"address","name":"_pair","type":"address"},{"internalType":"uint256","name":"_amount","type":"uint256"},{"internalType":"uint256","name":"_unlockTime","type":"uint256"},{"internalType":"bool","name":"_isStable","type":"bool"}],"stateMutability":"nonpayable","type":"constructor"},
+            {"inputs":[],"name":"claimFees","outputs":[],"stateMutability":"nonpayable","type":"function"},
+            {"inputs":[],"name":"getLockInfo","outputs":[{"internalType":"address","name":"pairAddress","type":"address"},{"internalType":"uint256","name":"lockedAmount","type":"uint256"},{"internalType":"string","name":"lockStatus","type":"string"},{"internalType":"uint256","name":"remainingDays","type":"uint256"},{"internalType":"uint256","name":"fees0","type":"uint256"},{"internalType":"uint256","name":"fees1","type":"uint256"},{"internalType":"uint256","name":"claimable0","type":"uint256"},{"internalType":"uint256","name":"claimable1","type":"uint256"}],"stateMutability":"view","type":"function"},
+            {"inputs":[],"name":"unlockLiquidity","outputs":[],"stateMutability":"nonpayable","type":"function"}
+        ];
+
+        const erc20ABI = [
+            {"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},
+            {"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+            {"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"}
+        ];
+
+        const shibarium = {
+            chainId: 109,
+            name: 'Shibarium',
+            currency: 'BONE',
+            explorerUrl: 'https://shibariumscan.io',
+            rpcUrl: 'https://rpc.shibrpc.com'
+        };
+
+        async function connectWallet() {
+            const status = document.getElementById('networkStatus');
+            try {
+                if (!window.ethereum) {
+                    status.innerHTML = 'No wallet detected. Please install <a href="https://metamask.io" target="_blank">MetaMask</a> and run via a local server (e.g., "npx serve").';
+                    throw new Error("No wallet detected");
+                }
+
+                status.innerText = "Connecting...";
+                web3 = new Web3(window.ethereum);
+                accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+
+                if (!accounts.length) {
+                    throw new Error("Please unlock your wallet or connect it.");
+                }
+
+                const chainId = await web3.eth.getChainId();
+                if (chainId !== 109) {
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x6d' }]
+                        });
+                    } catch (switchError) {
+                        if (switchError.code === 4902) {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: '0x6d',
+                                    chainName: 'Shibarium',
+                                    nativeCurrency: { name: 'BONE', symbol: 'BONE', decimals: 18 },
+                                    rpcUrls: ['https://rpc.shibrpc.com'],
+                                    blockExplorerUrls: ['https://shibariumscan.io']
+                                }]
+                            });
+                        } else {
+                            throw switchError;
+                        }
+                    }
+                }
+
+                document.getElementById('walletAddress').innerText = `${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
+                lockerContract = new web3.eth.Contract(lockerABI, lockerAddress);
+                status.innerText = "Connected to Shibarium";
+            } catch (error) {
+                console.error(error);
+                status.innerText = "Failed to connect: " + error.message;
+            }
+        }
+
+        async function getTokenBalance(pair, displayId) {
+            if (!web3 || !web3.utils.isAddress(pair) || !accounts) {
+                document.getElementById(displayId).innerText = "Balance: 0 LP";
+                return "0";
+            }
+            const tokenContract = new web3.eth.Contract(erc20ABI, pair);
+            try {
+                if (!tokenDecimals[pair]) {
+                    tokenDecimals[pair] = await tokenContract.methods.decimals().call();
+                }
+                const balance = await tokenContract.methods.balanceOf(accounts[0]).call();
+                const adjustedBalance = Number(web3.utils.fromWei(balance, 'ether')) * Math.pow(10, 18 - tokenDecimals[pair]);
+                document.getElementById(displayId).innerText = `Balance: ${adjustedBalance.toFixed(4)} LP`;
+                return balance;
+            } catch (error) {
+                console.error(error);
+                document.getElementById(displayId).innerText = "Balance: Error";
+                return "0";
+            }
+        }
+
+        function setPercentage(amountId, percent) {
+            const pairId = amountId === 'amountTemp' ? 'pairAddressTemp' : 'pairAddressPerm';
+            const balanceId = amountId === 'amountTemp' ? 'balanceTemp' : 'balancePerm';
+            const pair = document.getElementById(pairId).value.trim();
+            if (!pair || !web3.utils.isAddress(pair)) return;
+            getTokenBalance(pair, balanceId).then(balance => {
+                const decimals = tokenDecimals[pair] || 18;
+                const adjustedBalance = Number(web3.utils.fromWei(balance, 'ether')) * Math.pow(10, 18 - decimals);
+                const amount = (adjustedBalance * percent) / 100;
+                document.getElementById(amountId).value = amount.toFixed(4);
+            });
+        }
+
+        async function lockTemp() {
+            const section = document.getElementById('lockTempSection');
+            const status = document.getElementById('lockTempStatus');
+            const pair = document.getElementById('pairAddressTemp').value.trim();
+            const amount = document.getElementById('amountTemp').value;
+            const days = document.getElementById('daysToLock').value;
+            if (!pair || !amount || !days) return alert("Please fill all fields, pup!");
+            if (!web3.utils.isAddress(pair)) return alert("Invalid pair address, WOOF!");
+            if (parseInt(days) <= 0) return alert("Days must be greater than 0, WOOF!");
+            try {
+                section.classList.add('loading');
+                status.innerText = "Approving... WOOF!";
+                const tokenContract = new web3.eth.Contract(erc20ABI, pair);
+                const decimals = tokenDecimals[pair] || await tokenContract.methods.decimals().call();
+                tokenDecimals[pair] = decimals;
+                const weiAmount = web3.utils.toWei(amount.toString(), 'ether');
+                await tokenContract.methods.approve(lockerAddress, weiAmount).send({ from: accounts[0] });
+                status.innerText = "Locking... WOOF!";
+                await lockerContract.methods.lockLiquidity(pair, weiAmount, days).send({ from: accounts[0] });
+                status.innerText = "Locked successfully, good pup!";
+                document.getElementById('pairAddressTemp').value = '';
+                document.getElementById('amountTemp').value = '';
+                document.getElementById('daysToLock').value = '';
+                fetchLocks();
+            } catch (error) {
+                console.error(error);
+                status.innerText = "Failed: " + error.message;
+            } finally {
+                section.classList.remove('loading');
+            }
+        }
+
+        async function lockPerm() {
+            const section = document.getElementById('lockPermSection');
+            const status = document.getElementById('lockPermStatus');
+            const pair = document.getElementById('pairAddressPerm').value.trim();
+            const amount = document.getElementById('amountPerm').value;
+            if (!pair || !amount) return alert("Please fill all fields, pup!");
+            if (!web3.utils.isAddress(pair)) return alert("Invalid pair address, WOOF!");
+            try {
+                section.classList.add('loading');
+                status.innerText = "Approving... WOOF!";
+                const tokenContract = new web3.eth.Contract(erc20ABI, pair);
+                const decimals = tokenDecimals[pair] || await tokenContract.methods.decimals().call();
+                tokenDecimals[pair] = decimals;
+                const weiAmount = web3.utils.toWei(amount.toString(), 'ether');
+                await tokenContract.methods.approve(lockerAddress, weiAmount).send({ from: accounts[0] });
+                status.innerText = "Locking... WOOF!";
+                await lockerContract.methods.lockLiquidityPermanently(pair, weiAmount).send({ from: accounts[0] });
+                status.innerText = "Locked permanently, WOOF WOOF!";
+                document.getElementById('pairAddressPerm').value = '';
+                document.getElementById('amountPerm').value = '';
+                fetchLocks();
+            } catch (error) {
+                console.error(error);
+                status.innerText = "Failed: " + error.message;
+            } finally {
+                section.classList.remove('loading');
+            }
+        }
+
+        async function fetchLocks() {
+            if (!accounts) return alert("Please connect your wallet first, pup!");
+            const section = document.getElementById('locksSection');
+            const status = document.getElementById('locksStatus');
+            try {
+                section.classList.add('loading');
+                status.innerText = "Fetching locks... WOOF!";
+                const locks = await lockerContract.methods.getUserLockManagers(accounts[0]).call();
+                const locksBody = document.getElementById('locksBody');
+                locksBody.innerHTML = '';
+
+                if (locks.length === 0) {
+                    status.innerText = "No locks found, pup!";
+                    return;
+                }
+
+                for (const managerAddr of locks) {
+                    const managerContract = new web3.eth.Contract(lockManagerABI, managerAddr);
+                    const info = await managerContract.methods.getLockInfo().call();
+                    const decimals = tokenDecimals[info.pairAddress] || 18;
+                    const amount = Number(web3.utils.fromWei(info.lockedAmount, 'ether')) * Math.pow(10, 18 - decimals);
+                    const statusText = info.lockStatus;
+                    const remainingDays = info.remainingDays === '115792089237316195423570985008687907853269984665640564039457584007913129639935' ? 'Permanent' : info.remainingDays;
+                    const isUnlockable = info.lockedAmount > 0 && remainingDays !== 'Permanent' && parseInt(remainingDays) <= 0;
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${managerAddr.slice(0, 6)}...${managerAddr.slice(-4)}</td>
+                        <td>${amount.toFixed(4)} LP</td>
+                        <td>${statusText}</td>
+                        <td>${remainingDays}</td>
+                        <td class="actions-cell">
+                            <button class="button claimFees" data-manager="${managerAddr}">Claim Fees</button>
+                            <button class="button unlock" data-manager="${managerAddr}" ${!isUnlockable ? 'disabled' : ''}>Unlock</button>
+                        </td>
+                    `;
+                    locksBody.appendChild(row);
+                }
+
+                document.querySelectorAll('.claimFees').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const managerAddr = e.target.getAttribute('data-manager');
+                        await claimFees(managerAddr);
+                    });
+                });
+                document.querySelectorAll('.unlock').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const managerAddr = e.target.getAttribute('data-manager');
+                        await unlockLiquidity(managerAddr);
+                    });
+                });
+                status.innerText = "Locks loaded, WOOF!";
+            } catch (error) {
+                console.error(error);
+                status.innerText = "Failed to fetch locks: " + error.message;
+            } finally {
+                section.classList.remove('loading');
+            }
+        }
+
+        async function claimFees(managerAddr) {
+            const section = document.getElementById('locksSection');
+            const status = document.getElementById('locksStatus');
+            try {
+                section.classList.add('loading');
+                status.innerText = `Claiming fees for ${managerAddr.slice(0, 6)}...${managerAddr.slice(-4)}... WOOF!`;
+                const managerContract = new web3.eth.Contract(lockManagerABI, managerAddr);
+                await managerContract.methods.claimFees().send({ from: accounts[0] });
+                status.innerText = "Fees claimed, good pup!";
+                fetchLocks();
+            } catch (error) {
+                console.error(error);
+                status.innerText = "Failed to claim fees: " + error.message;
+            } finally {
+                section.classList.remove('loading');
+            }
+        }
+
+        async function unlockLiquidity(managerAddr) {
+            const section = document.getElementById('locksSection');
+            const status = document.getElementById('locksStatus');
+            try {
+                section.classList.add('loading');
+                status.innerText = `Unlocking ${managerAddr.slice(0, 6)}...${managerAddr.slice(-4)}... WOOF!`;
+                const managerContract = new web3.eth.Contract(lockManagerABI, managerAddr);
+                await managerContract.methods.unlockLiquidity().send({ from: accounts[0] });
+                status.innerText = "Unlocked successfully, WOOF WOOF!";
+                fetchLocks();
+            } catch (error) {
+                console.error(error);
+                status.innerText = "Failed to unlock: " + error.message;
+            } finally {
+                section.classList.remove('loading');
+            }
+        }
+
+        document.getElementById('connectButton').addEventListener('click', connectWallet);
+        document.getElementById('pairAddressTemp').addEventListener('change', () => getTokenBalance(document.getElementById('pairAddressTemp').value, 'balanceTemp'));
+        document.getElementById('pairAddressPerm').addEventListener('change', () => getTokenBalance(document.getElementById('pairAddressPerm').value, 'balancePerm'));
+        document.getElementById('lockTemp').addEventListener('click', lockTemp);
+        document.getElementById('lockPerm').addEventListener('click', lockPerm);
+        document.getElementById('fetchLocks').addEventListener('click', fetchLocks);
+
+        window.addEventListener('load', () => {
+            if (!window.location.protocol.startsWith('http')) {
+                document.getElementById('networkStatus').innerHTML = 'Please run this page via a local server (e.g., "npx serve") to connect MetaMask.';
+            } else if (!window.ethereum) {
+                document.getElementById('networkStatus').innerHTML = 'No wallet detected. Please install <a href="https://metamask.io" target="_blank">MetaMask</a>.';
+            }
+        });
+    </script>
+</body>
+</html>
